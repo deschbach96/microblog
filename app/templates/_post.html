@@ -1,0 +1,140 @@
+<table class="table table-hover">
+  <tr>
+    <td width="70px">
+      <a href="{{ url_for('main.user', username=post.author.username) }}">
+        <img src="{{ post.author.avatar(70) }}" />
+      </a>
+    </td>
+    <td>
+      {% set user_link %}
+      <a
+        class="user_popup"
+        href="{{ url_for('main.user', username=post.author.username) }}"
+      >
+        {{ post.author.username }}
+      </a>
+      {% endset %} {{ _('%(username)s said %(when)s', username=user_link,
+      when=moment(post.timestamp).fromNow()) }}
+      <br />
+      <span id="post{{ post.id }}">{{ post.body }}</span>
+      {% if post.language and post.language != g.locale %}
+      <br /><br />
+      <span id="translation{{ post.id }}">
+        <a
+          href="javascript:translate(
+                                'post{{ post.id }}',
+                                'translation{{ post.id }}',
+                                '{{ post.language }}',
+                                '{{ g.locale }}');"
+          >{{ _('Translate') }}</a
+        >
+      </span>
+      {% endif %}
+    </td>
+  </tr>
+</table>
+
+<!-- Comments Section -->
+<div
+  id="comments-section-{{ post.id }}"
+  style="display: none"
+  class="comments-section"
+>
+  <h5>{{ _('Comments') }}</h5>
+
+  <!-- Recursive function to render comments and replies -->
+  {% macro render_comment(comment) %}
+  <div class="comment ml-3">
+    <!-- Check if it's a reply and show "replied to" message -->
+    {% if comment.parent_name %}
+    <strong style="margin-left: 25px">{{ comment.author_name }}</strong> replied
+    to <strong>{{ comment.parent_name }}</strong>: {{ comment.body }}
+    <br />
+    <small style="margin-left: 25px"
+      >{{ comment.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small
+    >
+    {% else %}
+    <strong>{{ comment.author_name }}</strong>: {{ comment.body }}
+    <br />
+    <small>{{ comment.timestamp.strftime('%Y-%m-%d %H:%M:%S') }}</small>
+    {% endif %}
+
+    <!-- Edit/Delete for the comment/reply author -->
+    {% if comment.user_id == current_user.id %}
+    <a
+      href="{{ url_for('main.edit_comment', comment_id=comment.id) }}"
+      class="btn btn-sm btn-primary"
+      >{{ _('Edit') }}</a
+    >
+    <form
+      action="{{ url_for('main.delete_comment', comment_id=comment.id) }}"
+      method="POST"
+      style="display: inline"
+    >
+      <button type="submit" class="btn btn-sm btn-danger">
+        {{ _('Delete') }}
+      </button>
+    </form>
+    {% endif %}
+
+    <!-- Reply Button -->
+    <button
+      class="btn btn-sm btn-link"
+      onclick="toggleReplyForm('{{ comment.id }}','{{ post.id }}')"
+    >
+      Reply
+    </button>
+
+    <!-- Reply form (hidden by default) -->
+    <div id="reply-form-{{ comment.id }}" style="display: none" class="ml-4">
+      Reply here:
+      <form
+        action="{{ url_for('main.reply', comment_id=comment.id) }}"
+        method="POST"
+      >
+        {{ wtf.quick_form(comment_form) }}
+      </form>
+    </div>
+
+    <!-- Render Replies -->
+    <div class="replies ml-4">
+      {% for reply in comment.replies %} {{ render_comment(reply) }} {% endfor
+      %}
+    </div>
+  </div>
+  {% endmacro %}
+
+  <!-- Render all top-level comments -->
+  {% for comment in post.comments %} {{ render_comment(comment) }} {% endfor %}
+
+  <!-- Add new comment form -->
+  <form
+    id="def_form-{{ post.id }}"
+    action="{{ url_for('main.comment', post_id=post.id) }}"
+    method="POST"
+  >
+    {{ wtf.quick_form(comment_form) }}
+  </form>
+</div>
+<button
+  class="btn btn-sm btn-link"
+  style="margin-top: -10px; margin-bottom: 25px"
+  onclick="toggleComments('{{ post.id }}')"
+>
+  Comments
+</button>
+
+<!-- JavaScript to toggle the reply form -->
+<script>
+  function toggleReplyForm(commentId, postId) {
+    var form = document.getElementById("reply-form-" + commentId);
+    form.style.display = form.style.display === "none" ? "block" : "none";
+    var form2 = document.getElementById("def_form-" + postId);
+    form2.style.display = form2.style.display === "none" ? "block" : "none";
+  }
+
+  function toggleComments(postId) {
+    var section = document.getElementById("comments-section-" + postId);
+    section.style.display = section.style.display === "none" ? "block" : "none";
+  }
+</script>
