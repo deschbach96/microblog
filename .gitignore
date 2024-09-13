@@ -40,3 +40,5 @@ env/
 migrations/
 app.db
 microblog.log*
+
+*zip
