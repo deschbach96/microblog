@@ -30,11 +30,14 @@ def index():
     form = PostForm()
     comment_form = CommentForm() 
     if form.validate_on_submit():
+        #  try:
+        #     language = detect(form.post.data)
+        # except LangDetectException:
+        #     language = ''
         try:
-            language = detect(form.post.data)
-        except LangDetectException:
+            language = form.post.data
+        except:
             language = ''
-
         post = Post(body=form.post.data, author=current_user, language=language)
         db.session.add(post)
         db.session.commit()
@@ -270,70 +273,38 @@ def notifications():
 
 
 @bp.route('/comment/<int:post_id>', methods=['POST'])
+@login_required
 def comment(post_id):
     form = CommentForm()
     print(form.comment.data,"comment")
     post = Post.query.get_or_404(post_id)
     print(post.id, post.body, post.author.username, post.language,)
     if form.validate_on_submit():
-        if request.is_json:
-            comment = Comment(
-                body=form.comment.data,
-                author_name="test_user",
-                post_id=post.id,
-                user_id=2
-            )
-            db.session.add(comment)
-            db.session.commit()
-        else:
-            comment = Comment(
-                body=form.comment.data,
-                author_name=current_user.username,
-                post_id=post.id,
-                user_id=current_user.id
-            )
-            db.session.add(comment)
-            db.session.commit()
+        comment = Comment(
+            body=form.comment.data,
+            author_name=current_user.username,
+            post_id=post.id,
+            user_id=current_user.id
+        )
+        db.session.add(comment)
+        db.session.commit()
         if request.is_json:
             return jsonify({'message': 'Your comment has been added', 'comment': comment.body}), 201
         flash(_('Your comment has been added.'))
         return redirect(url_for('main.index'))
-    else:
-        if request.is_json:
-            comment = Comment(
-                body=form.comment.data,
-                author_name="test_user",
-                post_id=post.id,
-                user_id=2
-            )
-            db.session.add(comment)
-            db.session.commit()
-            return jsonify({'message': 'Your comment has been added', 'comment': comment.body}), 201
-
     if request.is_json:
         return jsonify({'error': 'Invalid form data'}), 400
     flash(_('Failed to add comment.'))
     return redirect(url_for('main.index'))
 
-
-@bp.route('/all_comments/<int:post_id>', methods=['GET'])
-def comments(post_id):
-    comments = Comment.query.filter_by(post_id=post_id, parent_id=None).order_by(Comment.timestamp.asc()).all()
-    comments_list = []
-    for comment in comments:
-        comment_dict = vars(comment)
-        # Remove non-JSON serializable attributes
-        comment_dict.pop('_sa_instance_state', None)
-        comments_list.append(comment_dict)
-
-    # Return as a JSON array
-    return jsonify(comments_list)
-
-
 @bp.route('/edit_comment/<int:comment_id>', methods=['GET', 'POST'])
+@login_required
 def edit_comment(comment_id):
     comment = Comment.query.get_or_404(comment_id)
-
+    if comment.user_id != current_user.id:
+        if request.is_json:
+            return jsonify({'error': 'Unauthorized'}), 403
+        abort(403)
     
     form = CommentForm()
     if form.validate_on_submit():
@@ -345,19 +316,13 @@ def edit_comment(comment_id):
         return redirect(url_for('main.index'))
     elif request.method == 'GET':
         form.comment.data = comment.body
-    else:
-        if request.is_json:
-            comment.body = form.comment.data
-            db.session.commit()
-            if request.is_json:
-                return jsonify({'message': 'Your comment has been updated', 'comment': comment.body}), 200
-
     
     if request.is_json:
         return jsonify({'error': 'Invalid form data'}), 400
     return render_template('edit_comment.html', form=form)
 
 @bp.route('/delete_comment/<int:comment_id>', methods=['POST'])
+@login_required
 def delete_comment(comment_id):
     comment = Comment.query.get_or_404(comment_id)
     replies = Comment.query.filter_by(parent_id=comment.id).all()
@@ -376,21 +341,8 @@ def delete_comment(comment_id):
     flash(_('Your comment has been deleted.'))
     return redirect(url_for('main.index'))
 
-
-@bp.route('/deletecomment/<int:comment_id>', methods=['POST'])
-def deletecomment(comment_id):
-    comment = Comment.query.get_or_404(comment_id)
-    replies = Comment.query.filter_by(parent_id=comment.id).all()
-
-    for reply in replies:
-        db.session.delete(reply)
-    db.session.delete(comment)
-    db.session.commit()
-    
-    return jsonify({'message': 'Your comment and replies have been deleted'}), 200
-
-
 @bp.route('/reply/<int:comment_id>', methods=['POST'])
+@login_required
 def reply(comment_id):
     comment = Comment.query.get_or_404(comment_id)
     post_id = comment.post_id
@@ -410,21 +362,7 @@ def reply(comment_id):
             return jsonify({'message': 'Your reply has been posted', 'reply': reply.body}), 201
         flash(_('Your reply has been posted.'))
         return redirect(url_for('main.index'))
-    else:
-        if request.is_json:
-
-            reply = Comment(
-                body=form.comment.data,
-                author_name="test_user",
-                parent_name=comment.author_name,
-                user_id=2,
-                post_id=post_id,
-                parent_id=comment.id
-            )
-            db.session.add(reply)
-            db.session.commit()
-            return jsonify({'message': 'Your reply has been posted', 'reply': reply.body}), 201
-
+    
     if request.is_json:
         return jsonify({'error': 'Invalid form data'}), 400
     flash(_('Failed to post reply.'))

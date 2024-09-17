@@ -292,7 +292,7 @@ class Post(SearchableMixin, db.Model):
         index=True, default=lambda: datetime.now(timezone.utc))
     user_id: so.Mapped[int] = so.mapped_column(sa.ForeignKey(User.id),
                                                index=True)
-    language: so.Mapped[Optional[str]] = so.mapped_column(sa.String(5))
+    language: so.Mapped[Optional[str]] = so.mapped_column(sa.Text)
 
     author: so.Mapped[User] = so.relationship(back_populates='posts')
 
